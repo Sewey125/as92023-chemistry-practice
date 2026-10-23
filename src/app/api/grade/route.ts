@@ -249,12 +249,26 @@ ${studentAnswer}
 Evaluate the student's answer now against the official NZQA criteria. Output ONLY valid JSON. Strictly NO emojis.
 `;
 
-    // Try models in order of speed and stability
-    const candidateModels = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    // Adaptive candidate models list prioritizing fast, modern Gemini models
+    const CANDIDATE_MODELS = [
+      "gemini-3.8-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash",
+      "gemini-3-flash",
+      "gemini-3.8-pro",
+      "gemini-2.5-pro",
+    ];
+
     let lastError: any = null;
     let responseText = "";
+    const modelsToTry = [...CANDIDATE_MODELS];
+    const triedModels = new Set<string>();
 
-    for (const modelName of candidateModels) {
+    while (modelsToTry.length > 0) {
+      const modelName = modelsToTry.shift()!;
+      if (triedModels.has(modelName)) continue;
+      triedModels.add(modelName);
+
       try {
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Request timed out after 25 seconds.")), 25000)
@@ -271,7 +285,11 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
         });
 
         const response: any = await Promise.race([generatePromise, timeoutPromise]);
-        responseText = response.text?.trim() || "";
+        responseText =
+          response.text?.trim() ||
+          response.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ||
+          "";
+
         if (responseText) {
           break; // successfully generated
         }
@@ -279,7 +297,78 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
         lastError = err;
         const errMsg = err?.message || String(err);
         console.warn(`Model ${modelName} encountered error:`, errMsg);
-        continue;
+
+        // Immediate stop for invalid credentials - do not burn quota or retry
+        if (errMsg.includes("API_KEY_INVALID") || errMsg.includes("not valid") || errMsg.includes("INVALID_ARGUMENT")) {
+          return NextResponse.json(
+            { error: "Your Gemini API key is invalid. Please copy a fresh API key from Google AI Studio (aistudio.google.com)." },
+            { status: 400 }
+          );
+        }
+
+        // Immediate stop for rate limits / quota exhaustion on free tier
+        if (errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429")) {
+          return NextResponse.json(
+            {
+              error: "Google AI Studio Free Tier rate limit reached (requests per minute or token limit). Please wait 20–30 seconds before clicking 'Grade Answer' again, or create a fresh API key at aistudio.google.com.",
+            },
+            { status: 429 }
+          );
+        }
+
+        // Automatic self-healing: If Google returns 404 with a recommendation like
+        // "Please update your code to use models/gemini-3.8-flash" or similar, dynamically queue the recommended model
+        const suggestedMatch = errMsg.match(/(?:models\/|use )([a-zA-Z0-9.-]+(?:flash|pro|gemini)[a-zA-Z0-9.-]*)/i);
+        if (suggestedMatch && suggestedMatch[1] && !triedModels.has(suggestedMatch[1])) {
+          modelsToTry.unshift(suggestedMatch[1]);
+        }
+      }
+    }
+
+    // Dynamic model catalog discovery fallback if hardcoded models were not found
+    if (!responseText && lastError) {
+      const errMsg = lastError?.message || "";
+      if (errMsg.includes("404") || errMsg.includes("NOT_FOUND") || errMsg.includes("no longer available")) {
+        try {
+          console.log("Attempting dynamic model discovery via ai.models.list()...");
+          const modelPager: any = await ai.models.list();
+          const availableModels: string[] = [];
+          for await (const m of modelPager) {
+            if (m.name) {
+              const cleanName = m.name.replace(/^models\//, "");
+              availableModels.push(cleanName);
+            }
+          }
+
+          const dynamicTarget =
+            availableModels.find((m) => m.includes("flash") && !triedModels.has(m)) ||
+            availableModels.find((m) => m.includes("gemini") && !triedModels.has(m));
+
+          if (dynamicTarget) {
+            console.log(`Discovered available model: ${dynamicTarget}, attempting generation...`);
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Request timed out after 25 seconds.")), 25000)
+            );
+
+            const generatePromise = ai.models.generateContent({
+              model: dynamicTarget,
+              contents: promptText,
+              config: {
+                systemInstruction,
+                responseMimeType: "application/json",
+                temperature: 0.2,
+              },
+            });
+
+            const response: any = await Promise.race([generatePromise, timeoutPromise]);
+            responseText =
+              response.text?.trim() ||
+              response.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ||
+              "";
+          }
+        } catch (discoveryErr: any) {
+          console.warn("Dynamic model discovery failed:", discoveryErr?.message || discoveryErr);
+        }
       }
     }
 
@@ -295,10 +384,21 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
     }
 
     try {
-      const parsedData = JSON.parse(responseText);
+      let cleanedText = responseText.trim();
+      // Remove any markdown code fence wrapping if present
+      if (cleanedText.startsWith("```")) {
+        cleanedText = cleanedText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      }
+      const firstBrace = cleanedText.indexOf("{");
+      const lastBrace = cleanedText.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        cleanedText = cleanedText.slice(firstBrace, lastBrace + 1);
+      }
+
+      const parsedData = JSON.parse(cleanedText);
       return NextResponse.json(parsedData);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response as JSON:", parseError);
+      console.error("Failed to parse Gemini response as JSON:", parseError, "\nRaw text:", responseText);
       return NextResponse.json(
         {
           error: "Gemini AI returned a response, but it could not be parsed as structured JSON. Please try submitting again.",

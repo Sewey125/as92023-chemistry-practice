@@ -591,7 +591,7 @@ export function PracticeWorkspace({
           </div>
         </div>
 
-        {/* Error message with instant offline fallback button */}
+        {/* Error message display */}
         {errorMessage && (
           <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-start space-x-2">
