@@ -286,12 +286,14 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
     }
 
     if (!responseText) {
-      console.warn("All Gemini API models failed or timed out. Gracefully falling back to simulated evaluation:", lastError?.message);
-      const fallbackResult = generateSimulatedEvaluation(studentAnswer, question);
-      return NextResponse.json({
-        ...fallbackResult,
-        isSimulated: true,
-      });
+      const errMsg = lastError?.message || "Google Gemini API did not return a response.";
+      console.error("Gemini API call failed for provided key:", errMsg);
+      return NextResponse.json(
+        {
+          error: `Google Gemini AI Error: ${errMsg}. Please test your key at aistudio.google.com/app/apikey or click 'Grade Offline' below to use the built-in NZQA engine.`,
+        },
+        { status: 400 }
+      );
     }
 
     try {
@@ -301,30 +303,19 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
         isSimulated: false,
       });
     } catch (parseError) {
-      console.warn("Failed to parse Gemini response as JSON. Falling back to heuristic evaluator:", parseError);
-      const fallbackResult = generateSimulatedEvaluation(studentAnswer, question);
-      return NextResponse.json({
-        ...fallbackResult,
-        isSimulated: true,
-      });
+      console.error("Failed to parse Gemini response as JSON:", parseError);
+      return NextResponse.json(
+        {
+          error: "Gemini AI returned a response, but it could not be parsed as structured JSON. Please click retry or grade offline.",
+        },
+        { status: 500 }
+      );
     }
   } catch (error: any) {
-    console.error("Evaluation error:", error);
-    try {
-      const question = PRACTICE_QUESTIONS.find((q) => q.id === questionId);
-      if (question) {
-        const fallbackResult = generateSimulatedEvaluation(studentAnswer, question);
-        return NextResponse.json({
-          ...fallbackResult,
-          isSimulated: true,
-        });
-      }
-    } catch {
-      // ignore
-    }
+    console.error("Evaluation route fatal error:", error);
     return NextResponse.json(
       {
-        error: error?.message || "Failed to evaluate answer. Please try again.",
+        error: error?.message || "Failed to evaluate answer. Please verify your Gemini API key or click Grade Offline.",
       },
       { status: 500 }
     );

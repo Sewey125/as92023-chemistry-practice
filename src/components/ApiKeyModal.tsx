@@ -83,10 +83,13 @@ export function ApiKeyModal({
       onKeySaved("");
       setStatusMessage("Key cleared. Switched to Built-in Instant Evaluator.");
     }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"));
+    }
     setTimeout(() => {
       onClose();
       setStatusMessage(null);
-    }, 1000);
+    }, 800);
   };
 
   const handleClearAndUseOffline = () => {
@@ -94,10 +97,13 @@ export function ApiKeyModal({
     localStorage.removeItem("as92023_gemini_key");
     onKeySaved("");
     setStatusMessage("Running in 100% Free Instant Mode (No Key Needed).");
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("storage"));
+    }
     setTimeout(() => {
       onClose();
       setStatusMessage(null);
-    }, 1000);
+    }, 800);
   };
 
   return (

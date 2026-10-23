@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Sparkles,
   Award,
@@ -63,6 +63,21 @@ export function PracticeWorkspace({
     false,
     false,
   ]);
+
+  // Synchronize key with localStorage directly to avoid state desync
+  const [syncedKey, setSyncedKey] = useState<string>(apiKey || "");
+
+  useEffect(() => {
+    const sync = () => {
+      const stored = (typeof window !== "undefined" ? localStorage.getItem("as92023_gemini_key") : "") || "";
+      setSyncedKey(stored || apiKey || "");
+    };
+    sync();
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [apiKey]);
+
+  const activeKey = (syncedKey || apiKey || "").trim();
 
   // Session progress tracking per question id
   const [sessionProgress, setSessionProgress] = useState<QuestionProgress>({});
@@ -134,7 +149,7 @@ export function PracticeWorkspace({
         body: JSON.stringify({
           questionId: currentQuestion.id,
           studentAnswer,
-          apiKey: forceOffline ? undefined : (apiKey || undefined),
+          apiKey: forceOffline ? undefined : (activeKey || undefined),
         }),
       });
 
@@ -600,10 +615,10 @@ export function PracticeWorkspace({
                   <Loader2 size={16} className="animate-spin text-stone-300" />
                   <span>Evaluating with NZQA Rubric...</span>
                 </>
-              ) : apiKey ? (
+              ) : activeKey ? (
                 <>
                   <Sparkles size={16} className="text-stone-200" />
-                  <span>Grade My Answer with AI</span>
+                  <span>Grade My Answer with Gemini AI</span>
                 </>
               ) : (
                 <>
@@ -613,7 +628,7 @@ export function PracticeWorkspace({
               )}
             </button>
 
-            {!apiKey ? (
+            {!activeKey ? (
               <button
                 onClick={onOpenApiKeyModal}
                 className="text-xs font-semibold px-3.5 py-2.5 rounded-xl bg-white/90 border border-stone-300 text-stone-700 hover:bg-white flex items-center shadow-xs"
