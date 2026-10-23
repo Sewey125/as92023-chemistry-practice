@@ -23,6 +23,8 @@ import {
   Table as TableIcon,
   CheckCircle,
   Zap,
+  XCircle,
+  Compass,
 } from "lucide-react";
 import {
   ALL_EXAM_QUESTIONS,
@@ -681,50 +683,212 @@ export function PracticeWorkspace({
           </p>
         )}
 
-        {/* 5. Evaluation Output Section */}
+        {/* 5. Comprehensive Evaluation Output Section */}
         {evaluation && (
           <div className="mt-8 pt-8 border-t border-stone-300/80 space-y-6 animate-in fade-in duration-300">
-            {/* Grade Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-stone-300/80 shadow-sm">
-              <div className="flex items-center space-x-3.5">
-                <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ${
-                    evaluation.grade === "Excellence"
-                      ? "bg-emerald-600 text-white"
-                      : evaluation.grade === "Merit"
-                      ? "bg-blue-600 text-white"
-                      : evaluation.grade === "Achieved"
-                      ? "bg-amber-600 text-white"
-                      : "bg-rose-600 text-white"
-                  }`}
-                >
-                  <Award size={24} />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs uppercase tracking-wider font-bold text-stone-500">
-                      Estimated NZQA Grade
-                    </span>
-                    {evaluation.isSimulated && (
-                      <button
-                        onClick={onOpenApiKeyModal}
-                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200"
-                      >
-                        Simulated Mode (Add Free Key)
-                      </button>
-                    )}
+            {/* Main Grade Header Banner */}
+            <div className="p-6 rounded-3xl bg-white border border-stone-300/80 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200">
+                <div className="flex items-center space-x-3.5">
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0 ${
+                      evaluation.grade === "Excellence"
+                        ? "bg-emerald-600 text-white"
+                        : evaluation.grade === "Merit"
+                        ? "bg-blue-600 text-white"
+                        : evaluation.grade === "Achieved"
+                        ? "bg-amber-600 text-white"
+                        : "bg-rose-600 text-white"
+                    }`}
+                  >
+                    <Award size={28} />
                   </div>
-                  <h3 className="text-2xl font-black tracking-tight text-stone-900">
-                    {evaluation.grade}
-                  </h3>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs uppercase tracking-wider font-bold text-stone-500">
+                        Official NZQA AS92023 Grade
+                      </span>
+                      {evaluation.isSimulated ? (
+                        <button
+                          onClick={onOpenApiKeyModal}
+                          className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 inline-flex items-center"
+                        >
+                          <Zap size={10} className="mr-1 text-amber-700" />
+                          <span>Built-in Heuristic Engine (Add Key for Gemini)</span>
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center">
+                          <Sparkles size={10} className="mr-1 text-emerald-700" />
+                          <span>Gemini AI Senior Examiner Evaluation</span>
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-3xl font-black tracking-tight text-stone-900">
+                      {evaluation.grade}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="text-left sm:text-right max-w-md">
+                  <p className="text-xs text-stone-700 leading-relaxed font-medium">
+                    {evaluation.scoreSummary}
+                  </p>
                 </div>
               </div>
 
-              <div className="text-left sm:text-right max-w-md">
-                <p className="text-xs text-stone-700 leading-relaxed font-medium">
-                  {evaluation.scoreSummary}
-                </p>
+              {/* Detailed Examiner Critique */}
+              {evaluation.detailedCritique && (
+                <div className="space-y-2 pt-1 text-xs">
+                  <span className="font-bold text-stone-900 uppercase tracking-wider text-[11px] block">
+                    Detailed Examiner Analysis &amp; Diagnostic:
+                  </span>
+                  <div className="whitespace-pre-line text-stone-700 leading-relaxed bg-[#FAF5ED] p-4 rounded-2xl border border-stone-200">
+                    {evaluation.detailedCritique}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Official NZQA Criteria Breakdown Checklist */}
+            {evaluation.criteriaBreakdown && evaluation.criteriaBreakdown.length > 0 && (
+              <div className="p-6 rounded-3xl bg-white border border-stone-300/80 shadow-sm space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 size={18} className="text-stone-800" />
+                    <h4 className="font-extrabold text-sm text-stone-900 tracking-tight">
+                      Official NZQA Marking Schedule Checklist
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-stone-500 font-medium">
+                    Evaluated against all Achieved, Merit &amp; Excellence evidence criteria
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 pt-1">
+                  {evaluation.criteriaBreakdown.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3.5 rounded-2xl border text-xs flex flex-col sm:flex-row sm:items-start justify-between gap-3 ${
+                        item.status === "met"
+                          ? "bg-emerald-50/60 border-emerald-200 text-emerald-950"
+                          : item.status === "partial"
+                          ? "bg-amber-50/60 border-amber-200 text-amber-950"
+                          : "bg-stone-50 border-stone-200 text-stone-700"
+                      }`}
+                    >
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                              item.tier === "Excellence"
+                                ? "bg-purple-100 text-purple-900 border border-purple-200"
+                                : item.tier === "Merit"
+                                ? "bg-blue-100 text-blue-900 border border-blue-200"
+                                : "bg-stone-200 text-stone-800"
+                            }`}
+                          >
+                            {item.tier}
+                          </span>
+                          <span className="font-semibold text-stone-900">
+                            {item.criterion}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-stone-600 pl-1 leading-relaxed">
+                          {item.feedback}
+                        </p>
+                      </div>
+
+                      <div className="flex-shrink-0 self-start sm:self-center">
+                        {item.status === "met" ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white font-bold text-[10px]">
+                            <Check size={11} />
+                            <span>Criterion Met</span>
+                          </span>
+                        ) : item.status === "partial" ? (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-amber-500 text-white font-bold text-[10px]">
+                            <AlertTriangle size={11} />
+                            <span>Partially Met</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-stone-300 text-stone-700 font-bold text-[10px]">
+                            <XCircle size={11} />
+                            <span>Not Yet Met</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
+
+            {/* Three Core Dimensions of AS92023 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              {/* Particle & Bonding */}
+              <div className="p-5 rounded-2xl bg-white border border-stone-300/80 space-y-2 shadow-xs">
+                <div className="font-bold text-stone-900 flex items-center text-sm">
+                  <CheckCircle2 size={16} className="mr-1.5 text-stone-800" />
+                  1. Particles &amp; Bonding
+                </div>
+                <div className="text-stone-700 leading-relaxed whitespace-pre-line text-[11px]">
+                  {evaluation.particleAndBondingFeedback}
+                </div>
+              </div>
+
+              {/* Mechanism Explanation */}
+              <div className="p-5 rounded-2xl bg-white border border-stone-300/80 space-y-2 shadow-xs">
+                <div className="font-bold text-stone-900 flex items-center text-sm">
+                  <Layers size={16} className="mr-1.5 text-stone-800" />
+                  2. Causal Mechanism
+                </div>
+                <div className="text-stone-700 leading-relaxed whitespace-pre-line text-[11px]">
+                  {evaluation.mechanismFeedback}
+                </div>
+              </div>
+
+              {/* Practical Use & Context */}
+              <div className="p-5 rounded-2xl bg-white border border-stone-300/80 space-y-2 shadow-xs">
+                <div className="font-bold text-stone-900 flex items-center text-sm">
+                  <Compass size={16} className="mr-1.5 text-stone-800" />
+                  3. Use &amp; Failure Modes
+                </div>
+                <div className="text-stone-700 leading-relaxed whitespace-pre-line text-[11px]">
+                  {evaluation.useJustificationFeedback}
+                </div>
+              </div>
+            </div>
+
+            {/* Strengths & Improvement Areas Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              {/* Key Strengths */}
+              {evaluation.keyStrengths && evaluation.keyStrengths.length > 0 && (
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                  <span className="font-bold text-emerald-950 flex items-center">
+                    <CheckCircle2 size={14} className="mr-1.5 text-emerald-700" />
+                    Key Strengths in Your Response:
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-emerald-900 text-[11px]">
+                    {evaluation.keyStrengths.map((str, i) => (
+                      <li key={i}>{str}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Areas for Improvement */}
+              {evaluation.areasForImprovement && evaluation.areasForImprovement.length > 0 && (
+                <div className="p-4 rounded-2xl bg-stone-100/80 border border-stone-300 space-y-2">
+                  <span className="font-bold text-stone-900 flex items-center">
+                    <ArrowUpRight size={14} className="mr-1.5 text-stone-700" />
+                    Key Areas to Strengthen:
+                  </span>
+                  <ul className="list-disc list-inside space-y-1 text-stone-700 text-[11px]">
+                    {evaluation.areasForImprovement.map((area, i) => (
+                      <li key={i}>{area}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Vague Language Alert (Official NZQA Examiner Penalty) */}
@@ -733,74 +897,42 @@ export function PracticeWorkspace({
                 <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-1.5">
                   <div className="font-bold flex items-center text-amber-900">
                     <AlertTriangle size={15} className="mr-1.5 text-amber-700" />
-                    Examiner Warning: Vague Terminology Detected
+                    NZQA Examiner Warning: Vague Descriptors Flagged
                   </div>
-                  <ul className="list-disc list-inside space-y-1 text-amber-900 pl-1">
+                  <ul className="list-disc list-inside space-y-1 text-amber-900 pl-1 text-[11px]">
                     {evaluation.vagueLanguageWarnings.map((warn, i) => (
                       <li key={i}>{warn}</li>
                     ))}
                   </ul>
                   <p className="text-[11px] text-amber-800 pt-1">
-                    The NZQA examiner commentary specifically notes that relying on
-                    vague descriptors like &quot;strong&quot;, &quot;light&quot;, or &quot;hard&quot; without
-                    particle explanation prevents higher grades.
+                    NZQA examiner commentaries note that candidates using vague words like &quot;strong&quot;,
+                    &quot;light&quot;, or &quot;hard&quot; without microscopic particle explanations are restricted
+                    from achieving Merit and Excellence.
                   </p>
                 </div>
               )}
 
-            {/* Detailed Rubric Breakdown Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              {/* Particle & Bonding */}
-              <div className="p-4 rounded-2xl bg-white/90 border border-stone-200/90 space-y-1.5 shadow-sm">
-                <div className="font-bold text-stone-900 flex items-center">
-                  <CheckCircle2 size={14} className="mr-1.5 text-stone-700" />
-                  Particle &amp; Bonding Check
-                </div>
-                <p className="text-stone-700 leading-relaxed">
-                  {evaluation.particleAndBondingFeedback}
-                </p>
-              </div>
-
-              {/* Mechanism Explanation */}
-              <div className="p-4 rounded-2xl bg-white/90 border border-stone-200/90 space-y-1.5 shadow-sm">
-                <div className="font-bold text-stone-900 flex items-center">
-                  <Layers size={14} className="mr-1.5 text-stone-700" />
-                  Structure-Property Link
-                </div>
-                <p className="text-stone-700 leading-relaxed">
-                  {evaluation.mechanismFeedback}
-                </p>
-              </div>
-
-              {/* Practical Use & Context */}
-              <div className="p-4 rounded-2xl bg-white/90 border border-stone-200/90 space-y-1.5 shadow-sm">
-                <div className="font-bold text-stone-900 flex items-center">
-                  <CheckCircle2 size={14} className="mr-1.5 text-stone-700" />
-                  Use Justification &amp; Trade-offs
-                </div>
-                <p className="text-stone-700 leading-relaxed">
-                  {evaluation.useJustificationFeedback}
-                </p>
-              </div>
-            </div>
-
             {/* Next Grade Booster Banner */}
-            <div className="p-4 rounded-2xl bg-[#FAF5ED] border border-stone-300 text-xs space-y-1">
-              <span className="font-bold text-stone-900 flex items-center">
-                <ArrowUpRight size={15} className="mr-1.5 text-stone-800" />
+            <div className="p-5 rounded-2xl bg-[#FAF5ED] border border-stone-300 text-xs space-y-2">
+              <span className="font-bold text-stone-900 flex items-center text-sm">
+                <ArrowUpRight size={16} className="mr-1.5 text-stone-800" />
                 How to Level Up to the Next Grade:
               </span>
-              <p className="text-stone-800 font-medium leading-relaxed pl-5">
+              <p className="text-stone-800 font-medium leading-relaxed pl-5 text-[11px]">
                 {evaluation.howToLevelUp}
               </p>
             </div>
 
-            {/* Exemplar Improvements */}
+            {/* Exemplar Advice / Tailored Rewrite */}
             {evaluation.exemplarImprovements && (
-              <p className="text-xs text-stone-600 px-1">
-                <strong className="text-stone-800">Examiner Advice:</strong>{" "}
-                {evaluation.exemplarImprovements}
-              </p>
+              <div className="p-4 rounded-2xl bg-white border border-stone-200 text-xs space-y-1.5">
+                <span className="font-bold text-stone-900 uppercase tracking-wider text-[11px] block">
+                  Excellence Phrasing Coach:
+                </span>
+                <p className="text-stone-700 leading-relaxed text-[11px]">
+                  {evaluation.exemplarImprovements}
+                </p>
+              </div>
             )}
 
             {/* Model Answer Drawer Toggle */}
@@ -808,7 +940,7 @@ export function PracticeWorkspace({
               <button
                 type="button"
                 onClick={() => setShowExemplar(!showExemplar)}
-                className="inline-flex items-center text-xs font-semibold px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-800 hover:bg-stone-100 transition-colors"
+                className="inline-flex items-center text-xs font-semibold px-4 py-2.5 rounded-xl bg-white border border-stone-300 text-stone-800 hover:bg-stone-100 transition-colors shadow-xs"
               >
                 <BookOpen size={14} className="mr-1.5 text-stone-700" />
                 <span>
@@ -843,7 +975,7 @@ export function PracticeWorkspace({
                     Full Excellence
                   </span>
                 </div>
-                <div className="whitespace-pre-line leading-relaxed font-sans text-stone-700">
+                <div className="whitespace-pre-line leading-relaxed font-sans text-stone-700 text-xs">
                   {currentQuestion.sampleExcellenceAnswer}
                 </div>
               </div>
