@@ -133,9 +133,15 @@ export function PracticeWorkspace({
     setErrorMessage(null);
   };
 
-  const handleEvaluate = async (forceOffline: boolean = false) => {
+  const handleEvaluate = async () => {
     if (!studentAnswer.trim()) {
       setErrorMessage("Please write your answer before asking for grading and feedback.");
+      return;
+    }
+
+    if (!activeKey) {
+      setErrorMessage("Please connect your free Google Gemini API key to grade your answer with AI.");
+      onOpenApiKeyModal();
       return;
     }
 
@@ -149,13 +155,13 @@ export function PracticeWorkspace({
         body: JSON.stringify({
           questionId: currentQuestion.id,
           studentAnswer,
-          apiKey: forceOffline ? undefined : (activeKey || undefined),
+          apiKey: activeKey,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to grade response.");
+        throw new Error(data.error || "Failed to grade response with Gemini AI.");
       }
 
       setEvaluation(data);
@@ -587,16 +593,16 @@ export function PracticeWorkspace({
 
         {/* Error message with instant offline fallback button */}
         {errorMessage && (
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle size={15} className="text-rose-600 flex-shrink-0" />
-              <span>{errorMessage}</span>
+          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start space-x-2">
+              <AlertTriangle size={16} className="text-rose-600 flex-shrink-0 mt-0.5" />
+              <span className="font-medium leading-relaxed">{errorMessage}</span>
             </div>
             <button
-              onClick={() => handleEvaluate(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-stone-900 text-white font-semibold text-[11px] hover:bg-stone-800 transition-colors self-start sm:self-auto shadow-xs"
+              onClick={onOpenApiKeyModal}
+              className="px-4 py-2 rounded-xl bg-stone-900 text-white font-semibold text-xs hover:bg-stone-800 transition-colors self-start sm:self-auto shadow-xs whitespace-nowrap"
             >
-              Grade with Offline Rubric
+              Verify API Key
             </button>
           </div>
         )}
@@ -606,46 +612,30 @@ export function PracticeWorkspace({
           <div className="flex flex-wrap items-center gap-3">
             {/* Primary Grade Button */}
             <button
-              onClick={() => handleEvaluate(false)}
+              onClick={handleEvaluate}
               disabled={isEvaluating}
               className="inline-flex items-center justify-center space-x-2 px-8 py-3.5 rounded-2xl bg-stone-900 text-stone-50 font-semibold text-sm hover:bg-stone-800 active:scale-[0.99] transition-all shadow-md disabled:opacity-50"
             >
               {isEvaluating ? (
                 <>
                   <Loader2 size={16} className="animate-spin text-stone-300" />
-                  <span>Evaluating with NZQA Rubric...</span>
+                  <span>Grading with Google Gemini AI...</span>
                 </>
-              ) : activeKey ? (
+              ) : (
                 <>
                   <Sparkles size={16} className="text-stone-200" />
                   <span>Grade My Answer with Gemini AI</span>
                 </>
-              ) : (
-                <>
-                  <Zap size={16} className="text-amber-300" />
-                  <span>Grade Answer (Instant Mode)</span>
-                </>
               )}
             </button>
 
-            {!activeKey ? (
-              <button
-                onClick={onOpenApiKeyModal}
-                className="text-xs font-semibold px-3.5 py-2.5 rounded-xl bg-white/90 border border-stone-300 text-stone-700 hover:bg-white flex items-center shadow-xs"
-              >
-                <KeyRound size={13} className="mr-1.5 text-stone-600" />
-                <span>Switch to AI Mode (Add Key)</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => handleEvaluate(true)}
-                disabled={isEvaluating}
-                className="text-xs font-medium px-3.5 py-2.5 rounded-xl bg-white/90 border border-stone-300 text-stone-700 hover:bg-white flex items-center shadow-xs disabled:opacity-50"
-              >
-                <Zap size={13} className="mr-1.5 text-amber-600" />
-                <span>Grade Offline Instantly</span>
-              </button>
-            )}
+            <button
+              onClick={onOpenApiKeyModal}
+              className="text-xs font-semibold px-4 py-2.5 rounded-xl bg-white/90 border border-stone-300 text-stone-700 hover:bg-white flex items-center shadow-xs"
+            >
+              <KeyRound size={13} className="mr-1.5 text-stone-600" />
+              <span>{activeKey ? "Gemini Key Connected (Edit)" : "Connect Gemini API Key"}</span>
+            </button>
           </div>
 
           {/* Navigation Controls (Gated by Grading Requirement) */}
@@ -723,20 +713,10 @@ export function PracticeWorkspace({
                       <span className="text-xs uppercase tracking-wider font-bold text-stone-500">
                         Official NZQA AS92023 Grade
                       </span>
-                      {evaluation.isSimulated ? (
-                        <button
-                          onClick={onOpenApiKeyModal}
-                          className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 inline-flex items-center"
-                        >
-                          <Zap size={10} className="mr-1 text-amber-700" />
-                          <span>Built-in Heuristic Engine (Add Key for Gemini)</span>
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center">
-                          <Sparkles size={10} className="mr-1 text-emerald-700" />
-                          <span>Gemini AI Senior Examiner Evaluation</span>
-                        </span>
-                      )}
+                      <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 inline-flex items-center">
+                        <Sparkles size={10} className="mr-1 text-emerald-700" />
+                        <span>Gemini AI Senior Examiner Evaluation</span>
+                      </span>
                     </div>
                     <h3 className="text-3xl font-black tracking-tight text-stone-900">
                       {evaluation.grade}

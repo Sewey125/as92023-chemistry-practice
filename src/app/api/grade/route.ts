@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
-import { PRACTICE_QUESTIONS, ExamQuestion } from "@/data/questions";
+import { PRACTICE_QUESTIONS } from "@/data/questions";
 
 export interface CriterionEvaluation {
   criterion: string;
@@ -22,7 +22,6 @@ export interface EvaluationResult {
   useJustificationFeedback: string;
   howToLevelUp: string;
   exemplarImprovements: string;
-  isSimulated?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -47,6 +46,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Question not found." },
         { status: 404 }
+      );
+    }
+
+    // Determine API Key: Client BYOK key takes precedence, fallback to server ENV key
+    const rawKey = apiKey?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
+    const activeApiKey = rawKey.replace(/['"`\s]/g, "");
+
+    if (!activeApiKey) {
+      return NextResponse.json(
+        {
+          error: "No Gemini API key found. Please click 'Connect API Key' in the navigation or practice header to enter your free key from Google AI Studio.",
+        },
+        { status: 400 }
       );
     }
 
@@ -91,22 +103,8 @@ export async function POST(req: NextRequest) {
           useJustificationFeedback: "No practical application, operational condition, or material comparison was evaluated.",
           howToLevelUp: "Begin by identifying the material classification (metallic solid, ionic compound, covalent network, molecular substance, or polymer) and naming the constituent particles held together by attractive forces.",
           exemplarImprovements: "Review the official model answer below to examine how each sub-question should be addressed with full scientific depth.",
-          isSimulated: false,
         } satisfies EvaluationResult
       );
-    }
-
-    // Determine API Key: Client BYOK key takes precedence, fallback to server ENV key
-    const rawKey = apiKey?.trim() || process.env.GEMINI_API_KEY?.trim() || "";
-    const activeApiKey = rawKey.replace(/['"`\s]/g, "");
-
-    if (!activeApiKey) {
-      // If no key is present, provide instant simulated evaluation based on NZQA rubric
-      const simulatedResult = generateSimulatedEvaluation(studentAnswer, question);
-      return NextResponse.json({
-        ...simulatedResult,
-        isSimulated: true,
-      });
     }
 
     // Call Google Gemini API
@@ -259,7 +257,7 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
     for (const modelName of candidateModels) {
       try {
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Request timeout")), 16000)
+          setTimeout(() => reject(new Error("Request timed out after 25 seconds.")), 25000)
         );
 
         const generatePromise = ai.models.generateContent({
@@ -290,7 +288,7 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
       console.error("Gemini API call failed for provided key:", errMsg);
       return NextResponse.json(
         {
-          error: `Google Gemini AI Error: ${errMsg}. Please test your key at aistudio.google.com/app/apikey or click 'Grade Offline' below to use the built-in NZQA engine.`,
+          error: `Google Gemini AI Error: ${errMsg}. Please verify that your API key from Google AI Studio is active and has available quota.`,
         },
         { status: 400 }
       );
@@ -298,15 +296,12 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
 
     try {
       const parsedData = JSON.parse(responseText);
-      return NextResponse.json({
-        ...parsedData,
-        isSimulated: false,
-      });
+      return NextResponse.json(parsedData);
     } catch (parseError) {
       console.error("Failed to parse Gemini response as JSON:", parseError);
       return NextResponse.json(
         {
-          error: "Gemini AI returned a response, but it could not be parsed as structured JSON. Please click retry or grade offline.",
+          error: "Gemini AI returned a response, but it could not be parsed as structured JSON. Please try submitting again.",
         },
         { status: 500 }
       );
@@ -315,277 +310,9 @@ Evaluate the student's answer now against the official NZQA criteria. Output ONL
     console.error("Evaluation route fatal error:", error);
     return NextResponse.json(
       {
-        error: error?.message || "Failed to evaluate answer. Please verify your Gemini API key or click Grade Offline.",
+        error: error?.message || "Failed to evaluate answer with Gemini AI.",
       },
       { status: 500 }
     );
   }
-}
-
-// Deep, question-aware heuristic evaluator for offline/fallback mode
-function generateSimulatedEvaluation(studentAnswer: string, question: ExamQuestion): EvaluationResult {
-  const text = studentAnswer.toLowerCase();
-
-  // General scientific checks
-  const mentionsParticles =
-    text.includes("particle") ||
-    text.includes("atom") ||
-    text.includes("ion") ||
-    text.includes("cation") ||
-    text.includes("anion") ||
-    text.includes("electron") ||
-    text.includes("molecule") ||
-    text.includes("monomer") ||
-    text.includes("chain");
-
-  const mentionsForces =
-    text.includes("bonding") ||
-    text.includes("metallic bond") ||
-    text.includes("ionic bond") ||
-    text.includes("covalent bond") ||
-    text.includes("intermolecular") ||
-    text.includes("electrostatic") ||
-    text.includes("attractive force") ||
-    text.includes("imf");
-
-  const mentionsMechanism =
-    text.includes("delocalised") ||
-    text.includes("slide") ||
-    text.includes("disrupt") ||
-    text.includes("3d network") ||
-    text.includes("hydrate") ||
-    text.includes("polar") ||
-    text.includes("branch") ||
-    text.includes("layer") ||
-    text.includes("cleavage") ||
-    text.includes("repel");
-
-  const mentionsUseComparison =
-    (text.includes("because") || text.includes("therefore") || text.includes("so that")) &&
-    (text.includes("fail") ||
-      text.includes("unsuitable") ||
-      text.includes("instead") ||
-      text.includes("corrosion") ||
-      text.includes("buoyant") ||
-      text.includes("float") ||
-      text.includes("crack") ||
-      text.includes("fatigue") ||
-      text.includes("bend") ||
-      text.includes("shatter"));
-
-  // Vague word detection
-  const vagueWords: string[] = [];
-  if (text.includes("strong bond")) {
-    vagueWords.push("You wrote 'strong bond' without specifying the electrostatic nature (e.g. non-directional metallic bonding, ionic bonding between oppositely charged ions, or continuous covalent bonding).");
-  }
-  if (text.match(/\bstrong\b/) && !mentionsForces) {
-    vagueWords.push("You described the material as 'strong' without naming the particles or attractive forces that resist tensile stress.");
-  }
-  if (text.match(/\blight\b/) && !text.includes("density")) {
-    vagueWords.push("You stated the material is 'light'. NZQA examiners strictly look for the property of 'low density' (low mass per unit volume).");
-  }
-  if (text.match(/\bhard\b/) && !mentionsParticles) {
-    vagueWords.push("You stated the material is 'hard' without explaining how continuous rigid bonding resists scratching and surface deformation.");
-  }
-
-  // Question-specific material checks
-  const materialsFound: string[] = [];
-  question.materials.forEach((mat) => {
-    const simplified = mat.toLowerCase().split(" ")[0].replace(/[^a-z]/g, "");
-    if (text.includes(simplified)) {
-      materialsFound.push(mat);
-    }
-  });
-
-  // Evaluate each official criterion
-  const criteriaBreakdown: CriterionEvaluation[] = [];
-
-  // Achieved criteria
-  let achievedMetCount = 0;
-  question.criteria.achieved.forEach((crit) => {
-    const critLower = crit.toLowerCase();
-    const hasMatch =
-      (critLower.includes("define") && (text.includes("repeating") || text.includes("monomer") || text.includes("many units"))) ||
-      (critLower.includes("covalent network") && text.includes("covalent network")) ||
-      (critLower.includes("metallic") && (text.includes("metal") || text.includes("metallic"))) ||
-      (critLower.includes("ionic") && (text.includes("ionic") || text.includes("ion"))) ||
-      (critLower.includes("density") && text.includes("density")) ||
-      (critLower.includes("property") && mentionsForces);
-
-    if (hasMatch) {
-      achievedMetCount++;
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Achieved",
-        status: "met",
-        feedback: "Satisfied: Key terminology and classifications were correctly identified in your response.",
-      });
-    } else if (mentionsParticles || materialsFound.length > 0) {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Achieved",
-        status: "partial",
-        feedback: "Partially addressed: Stated basic properties but needs more formal classification terms.",
-      });
-    } else {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Achieved",
-        status: "not_met",
-        feedback: "Not yet met: Explicitly state the classification and fundamental definitions required.",
-      });
-    }
-  });
-
-  // Merit criteria
-  let meritMetCount = 0;
-  question.criteria.merit.forEach((crit) => {
-    const critLower = crit.toLowerCase();
-    const hasMechanismMatch =
-      (critLower.includes("branch") && text.includes("branch")) ||
-      (critLower.includes("slide") && (text.includes("slide") || text.includes("layers"))) ||
-      (critLower.includes("disrupt") && (text.includes("disrupt") || text.includes("distort") || text.includes("size"))) ||
-      (critLower.includes("polar") && (text.includes("polar") || text.includes("dipole") || text.includes("hydrate"))) ||
-      (critLower.includes("delocalised") && text.includes("delocalised")) ||
-      (mentionsMechanism && mentionsForces);
-
-    if (hasMechanismMatch && mentionsParticles) {
-      meritMetCount++;
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Merit",
-        status: "met",
-        feedback: "Satisfied: Successfully explained the step-by-step microscopic mechanism linking structure to property.",
-      });
-    } else if (mentionsParticles && mentionsForces) {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Merit",
-        status: "partial",
-        feedback: "Partially addressed: Named the forces, but explain the exact physical mechanism (e.g. how layers slide, or why branching prevents packing).",
-      });
-    } else {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Merit",
-        status: "not_met",
-        feedback: "Not yet met: Connect the particles and attractive forces directly to the physical mechanism causing the property.",
-      });
-    }
-  });
-
-  // Excellence criteria
-  let excellenceMetCount = 0;
-  question.criteria.excellence.forEach((crit) => {
-    const hasExcellenceMatch =
-      mentionsUseComparison &&
-      studentAnswer.length > 350 &&
-      meritMetCount > 0 &&
-      (text.includes("fail") || text.includes("alternative") || text.includes("fatigue") || text.includes("corrosion") || text.includes("buoyant"));
-
-    if (hasExcellenceMatch) {
-      excellenceMetCount++;
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Excellence",
-        status: "met",
-        feedback: "Satisfied: Thoroughly evaluated practical operational performance, trade-offs, and alternative material failure modes.",
-      });
-    } else if (mentionsUseComparison || studentAnswer.length > 250) {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Excellence",
-        status: "partial",
-        feedback: "Partially addressed: Discussed the application, but must critically evaluate why an alternative material would fail under operating conditions.",
-      });
-    } else {
-      criteriaBreakdown.push({
-        criterion: crit,
-        tier: "Excellence",
-        status: "not_met",
-        feedback: "Not yet met: Provide a comprehensive comparison evaluating trade-offs and structural failure reasons in the given context.",
-      });
-    }
-  });
-
-  // Grade decision logic
-  let grade: EvaluationResult["grade"] = "Not Achieved";
-  let scoreSummary = "Your response demonstrates basic awareness of the scenario but lacks structured scientific links between particles, attractive forces, and operational use.";
-  let howToLevelUp = "Begin by identifying the material classification and naming the constituent particles held together by attractive forces.";
-
-  if (excellenceMetCount > 0 && meritMetCount > 0 && studentAnswer.length > 350) {
-    grade = "Excellence";
-    scoreSummary = `Excellence demonstrated. Your response provides an in-depth, comprehensive evaluation of ${question.materials.join(" and ")}, connecting constituent particles and bonding mechanisms directly to operational performance and failure modes.`;
-    howToLevelUp = "You have demonstrated Excellence level understanding. Review the model answer below to ensure your phrasing is as concise and scientifically rigorous as possible.";
-  } else if (meritMetCount > 0 && achievedMetCount > 0) {
-    grade = "Merit";
-    scoreSummary = `Merit achieved. You successfully explained the particle-level mechanisms for ${question.materials.join(" and ")}, clearly connecting atomic/molecular structure to observed physical properties.`;
-    howToLevelUp = "To advance to Excellence: Comprehensively evaluate the real-world operational context. Explain why an alternative material would be completely unsuitable or fail under operating conditions (e.g. fatigue, fracture, or corrosion).";
-  } else if (achievedMetCount > 0 || (mentionsParticles && mentionsForces)) {
-    grade = "Achieved";
-    scoreSummary = `Achieved demonstrated. You correctly identified relevant physical properties and basic particle or bonding types for ${question.materials.join(" and ")}.`;
-    howToLevelUp = "To advance to Merit: Provide the detailed microscopic mechanism explaining WHY the property occurs (e.g. explain how layers of ions or atoms slide or repel, or how polymer branching prevents chains from packing closely).";
-  }
-
-  // Question-specific detailed critique
-  const detailedCritique = `In this assessment on "${question.title}", the examiner looks for systematic application of the SPAC framework across both ${question.materials.join(" and ")}. 
-
-Your response ${materialsFound.length > 0 ? `addressed ${materialsFound.join(" and ")}` : "did not clearly distinguish between the specified materials"}. ${
-    mentionsParticles
-      ? "You identified constituent particles, which establishes the required scientific foundation."
-      : "You did not explicitly name the constituent particles (atoms, cations, anions, delocalised electrons, or molecules) forming the 3D network or molecular units."
-  } ${
-    mentionsForces
-      ? "You referenced the attractive forces/bonding acting between particles."
-      : "You omitted the specific electrostatic forces of attraction holding the structure together."
-  }
-
-${
-  grade === "Excellence"
-    ? "Your answer stands out because it integrates practical operational demands, evaluating why these materials perform under stress and comparing them against alternative failure modes."
-    : grade === "Merit"
-    ? "To move from Merit to Excellence, deepen your evaluation of the practical context: explain why an alternative material would fail under real conditions (e.g., deformation under load, water absorption, or brittle fracture)."
-    : "To advance from Achieved to Merit, focus on the causal mechanism: do not just state what the property is, but explain step-by-step how the particle arrangement and bonding cause that property."
-}`;
-
-  const particleAndBondingFeedback = mentionsParticles && mentionsForces
-    ? `Strong recognition of particles and attractive forces. You referenced ${
-        text.includes("ion") ? "ions and ionic bonding, " : ""
-      }${text.includes("electron") ? "delocalised valence electrons, " : ""}${
-        text.includes("covalent") ? "covalent bonding in network/molecules, " : ""
-      }${text.includes("polymer") ? "polymer chains and intermolecular forces. " : "the constituent particles in the 3D network. "}Ensure you always specify whether particles are atoms, cations, anions, molecules, or delocalised electrons for EACH material.`
-    : `NZQA examiners require explicit identification of both the particles and the attractive forces for each material: ${question.materials.join(
-        " and "
-      )}. For example, specify whether the material consists of metal cations in a 3D network with delocalised electrons, ions held by ionic bonds, or polymer chains held by weak intermolecular forces.`;
-
-  const mechanismFeedback = mentionsMechanism
-    ? `You included microscopic mechanical explanation. For Merit and Excellence, ensure you trace the complete causal sequence: particle arrangement -> applied stress or condition -> response of particles -> observable macroscopic property.`
-    : `Missing microscopic causal mechanism. Explain the step-by-step science: for metals, explain how non-directional bonding allows layers of cations to slide; for polymers (LDPE), explain how irregular side-chain branching prevents close packing of chains, leaving empty space and producing low density; for covalent networks, explain how rigid directional covalent bonds throughout the 3D network resist deformation.`;
-
-  const useJustificationFeedback = mentionsUseComparison
-    ? `Good context evaluation. You connected material properties directly to the application in ${question.title}. For full Excellence, explicitly analyze failure modes: explain what would happen if an unsuitable alternative material were used instead.`
-    : `Incomplete application evaluation. Connect the physical property directly to the scenario: explain why low density ensures buoyancy in water, why hardness prevents hull abrasion on rocks, or why malleability enables shaping into tubes without fracture.`;
-
-  return {
-    grade,
-    scoreSummary,
-    detailedCritique,
-    criteriaBreakdown,
-    keyStrengths: [
-      mentionsParticles ? "Correctly identified constituent particles in the material structure." : "Demonstrated awareness of the practical scenario.",
-      mentionsForces ? "Referenced attractive forces/bonding holding particles together." : "Identified key physical properties.",
-      materialsFound.length > 0 ? `Directly referenced scenario materials: ${materialsFound.join(", ")}.` : "Attempted to address the question prompt.",
-    ],
-    areasForImprovement: [
-      !mentionsMechanism ? "Detail the microscopic mechanism (e.g. layer sliding, like-charge repulsion, or branch packing)." : "Deepen operational trade-off analysis.",
-      !mentionsUseComparison ? "Evaluate why an alternative material would fail under operational conditions." : "Eliminate any informal or vague terminology.",
-    ],
-    vagueLanguageWarnings: vagueWords,
-    particleAndBondingFeedback,
-    mechanismFeedback,
-    useJustificationFeedback,
-    howToLevelUp,
-    exemplarImprovements: `To achieve Excellence: Structure your answer using the SPAC formula. Compare the performance against an alternative material and integrate specific data from the scenario table.`,
-    isSimulated: true,
-  };
 }

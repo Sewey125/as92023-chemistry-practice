@@ -92,18 +92,14 @@ export function ApiKeyModal({
     }, 800);
   };
 
-  const handleClearAndUseOffline = () => {
+  const handleClearKey = () => {
     setApiKeyInput("");
     localStorage.removeItem("as92023_gemini_key");
     onKeySaved("");
-    setStatusMessage("Running in 100% Free Instant Mode (No Key Needed).");
+    setStatusMessage("API Key removed from browser storage.");
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("storage"));
     }
-    setTimeout(() => {
-      onClose();
-      setStatusMessage(null);
-    }, 800);
   };
 
   return (
@@ -133,30 +129,11 @@ export function ApiKeyModal({
           </div>
         </div>
 
-        {/* Option 1: Instant Mode (No Key) */}
-        <div className="bg-emerald-50/80 rounded-2xl p-4 mb-4 border border-emerald-200/90 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <span className="font-bold flex items-center text-emerald-900 mb-0.5">
-              <Zap size={13} className="mr-1 text-emerald-700" />
-              Tired of API keys? Use Instant Offline Mode
-            </span>
-            <p className="text-emerald-800 leading-relaxed text-[11px]">
-              Grades answers instantly (&lt;0.05s) using the official NZQA criteria without needing any Google key.
-            </p>
-          </div>
-          <button
-            onClick={handleClearAndUseOffline}
-            className="px-3.5 py-1.5 rounded-xl bg-emerald-800 text-white font-semibold text-xs hover:bg-emerald-700 whitespace-nowrap self-start sm:self-auto shadow-xs"
-          >
-            Use Instant Mode
-          </button>
-        </div>
-
         {/* Step-by-step help */}
         <div className="bg-[#F2E9DE] rounded-2xl p-4 mb-4 border border-stone-300/60 text-xs text-stone-700 space-y-2">
           <p className="font-semibold text-stone-900 flex items-center">
             <ExternalLink size={13} className="mr-1.5 text-stone-600" />
-            Or get a free Gemini key in 30 seconds:
+            Get your 100% free Gemini API key in 30 seconds:
           </p>
           <ol className="list-decimal list-inside space-y-1 text-stone-600 pl-1 text-[11px]">
             <li>
@@ -245,7 +222,7 @@ export function ApiKeyModal({
         <div className="flex items-center justify-between pt-3 border-t border-stone-200">
           {currentKey ? (
             <button
-              onClick={handleClearAndUseOffline}
+              onClick={handleClearKey}
               className="text-xs text-rose-700 hover:text-rose-900 font-semibold px-2 py-1"
             >
               Remove Stored Key
