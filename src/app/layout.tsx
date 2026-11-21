@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Instagram • Mottathala Izaakutty",
-  description: "Accurate Instagram UI redesign prototype featuring Mottathala Izaakutty.",
+  title: "Instagram",
+  description: "Instagram featuring Mottathala Izaakutty.",
 };
 
 export default function RootLayout({

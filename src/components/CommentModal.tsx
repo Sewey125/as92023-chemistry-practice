@@ -29,7 +29,7 @@ export function CommentModal({ isOpen, onClose, postAuthor }: CommentModalProps)
     {
       id: 3,
       user: "silverfrog",
-      text: "Need this exact prototype design system everywhere.",
+      text: "Need this exact design system everywhere.",
       time: "12m",
       likes: 3,
     },
